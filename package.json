@@ -1,0 +1,29 @@
+{
+  "name": "lifepilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LifePilot — personal-life automation web app (runnable full-stack skeleton, architecture slice 1)",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @lifepilot/api --filter @lifepilot/worker --filter @lifepilot/web --parallel dev",
+    "dev:api": "pnpm --filter @lifepilot/api dev",
+    "dev:worker": "pnpm --filter @lifepilot/worker dev",
+    "dev:web": "pnpm --filter @lifepilot/web dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @lifepilot/api test && pnpm --filter @lifepilot/worker test",
+    "test:api": "pnpm --filter @lifepilot/api test",
+    "test:worker": "pnpm --filter @lifepilot/worker test",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @lifepilot/db generate",
+    "db:migrate": "pnpm --filter @lifepilot/db migrate:deploy",
+    "db:seed": "pnpm --filter @lifepilot/db seed",
+    "webhook:receiver": "node scripts/dev-webhook-receiver.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

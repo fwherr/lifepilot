@@ -1,0 +1,98 @@
+// LifePilot — architecture slice 1 data model.
+// Reminder statuses: PENDING (scheduled, not yet delivered), DELIVERED,
+// FAILED (all BullMQ attempts exhausted), CANCELLED (user cancelled).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Channel {
+  EMAIL
+  WHATSAPP
+  AI_AGENT
+  WEBHOOK
+  RAZORPAY
+}
+
+enum ReminderStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum AttemptStatus {
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  reminders    Reminder[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Reminder {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  body       String?
+  dueAt      DateTime
+  channel    Channel
+  status     ReminderStatus @default(PENDING)
+  payload    Json?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  attempts   DeliveryAttempt[]
+  attachments Attachment[]
+
+  @@index([userId])
+  @@index([status, dueAt])
+}
+
+model DeliveryAttempt {
+  id         String        @id @default(cuid())
+  reminderId String
+  reminder   Reminder      @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  channel    Channel
+  status     AttemptStatus
+  detail     Json?
+  createdAt  DateTime      @default(now())
+
+  @@index([reminderId])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  reminderId  String
+  reminder    Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  objectKey   String
+  filename    String
+  contentType String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  @@index([reminderId])
+}
