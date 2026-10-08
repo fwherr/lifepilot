@@ -11,7 +11,7 @@ and how to reproduce every step.
 | `pnpm -v` | 11.7.0 |
 | `git --version` | 2.53.0.windows.1 |
 | `pnpm install` | ✅ exit 0 (lockfile committed: `pnpm-lock.yaml`) |
-| Prisma client generation | ✅ `prisma generate` via `@lifepilot/db` postinstall |
+| Prisma client generation | ✅ `prisma generate` via `@lifepilot/db` postinstall (verified: generated `Channel`/model exports present in `.prisma/client`) |
 
 ## 2. Migration SQL shipped without a live database
 
@@ -25,7 +25,8 @@ pnpm --filter @lifepilot/db exec prisma migrate diff \
 
 `packages/db/prisma/migrations/0001_init/migration.sql` contains the full DDL
 (3 enums, 5 tables, unique/regular indexes, cascade foreign keys) and is applied
-by `pnpm db:migrate` (`prisma migrate deploy`).
+by `pnpm db:migrate` (`prisma migrate deploy`). The exact same diff command was
+run on the build machine and its output committed.
 
 ## 3. Typecheck — all 5 packages
 
@@ -68,9 +69,39 @@ doubles (in-memory Prisma fake, queue fake, S3 fake), so they run on any clean
 machine without PostgreSQL/Redis/MinIO — exactly the "one command runs the API
 and worker test suites and they pass" criterion.
 
-## 5. End-to-end run with real services
+## 5. Real-network smoke test (webhook channel, actual HTTP)
 
-Prerequisites: Docker Desktop running.
+```bash
+pnpm --filter @lifepilot/worker exec tsx scripts/smoke-webhook.ts
+```
+
+Spawns `scripts/dev-webhook-receiver.mjs` on localhost:3100, delivers a reminder
+through the real WEBHOOK adapter over real HTTP, receiver validates the
+`x-lifepilot-signature` HMAC and answers 200:
+
+```
+[smoke] delivery result: {"url":"http://localhost:3100/hook","status":200,"responseBody":"{\"received\":true}"}
+SMOKE_OK: receiver validated our HMAC signature over real HTTP
+```
+
+## 6. Production build of the web app
+
+```bash
+pnpm --filter @lifepilot/web build
+```
+
+✅ exit 0 — all routes compile and prerender:
+
+```
+Route (app)            Size     First Load JS
+○ /                    175 B     96.2 kB
+○ /login               2.76 kB   98.8 kB
+○ /reminders           3.88 kB   99.9 kB
+ƒ /reminders/[id]      3.54 kB   90.9 kB
+○ /signup              2.8 kB    98.8 kB
+```
+
+## 7. End-to-end run with real infrastructure (docker compose)
 
 ```bash
 docker compose up -d --wait   # postgres 5432 · redis 6379 · minio 9000/9001 (healthchecks gate)
@@ -79,27 +110,30 @@ pnpm db:seed                  # demo user + 2 sample reminders (prints demo pass
 pnpm dev                      # web :3000 · api :3001 · worker (watch logs)
 ```
 
-30-second delivery demo (EMAIL console transport):
+30-second delivery demo:
 
 1. Log in at http://localhost:3000 → **New reminder** → due time ~1 min ahead (or in the past to fire immediately) → channel **EMAIL** → schedule.
 2. Worker log prints the full email (`transport: "console"`) and the reminder flips **PENDING → DELIVERED**; the attempt (structured detail) is visible on the reminder page.
-3. WEBHOOK: `pnpm webhook:receiver` (port 3100) → create reminder with payload `{"url":"http://localhost:3100/hook"}` → the receiver validates `x-lifepilot-signature` (HMAC-SHA256 of the raw body) and prints the payload.
-4. RAZORPAY: create a reminder on that channel → the attempt detail shows `mode: "razorpay-simulated"` (or a real sandbox `order_…` id when `RAZORPAY_KEY_ID/SECRET` test keys are set).
-5. Attachments: open any reminder → **Upload file** → the file lands in MinIO (`lifepilot-attachments` bucket) and is downloadable via a short-lived presigned URL.
+3. WEBHOOK: `pnpm webhook:receiver` → create reminder with payload `{"url":"http://localhost:3100/hook"}` → receiver validates the signature and prints the payload (already proven over real HTTP in section 5).
+4. RAZORPAY: create a reminder on that channel → attempt detail shows `mode: "razorpay-simulated"` (or a real sandbox `order_…` id when `RAZORPAY_KEY_ID/SECRET` test keys are set).
+5. Attachments: open any reminder → **Upload file** → file lands in MinIO (`lifepilot-attachments` bucket), downloadable via short-lived presigned URL.
 
-Status on the build machine: Docker Desktop's Linux engine could not be started
-in this sandboxed session (the `docker-desktop` WSL distro stayed *Stopped* and
-the engine pipe never appeared), so **step 5 was executed on the host only up to
-the point the engine allows**; the compose stack itself is exercised by the
-healthchecked `docker-compose.yml` and the exact commands above. Unit-level
-behaviour of every component (including against injected real-shaped doubles)
-is fully covered by the 60 tests in section 4 — and the e2e flow above is the
-reproduction script for any machine where Docker Desktop starts normally.
+**Honest status from the build session:** Docker Desktop is installed on the
+build machine but its Linux engine could not be started during this sandboxed
+session — the `docker-desktop` WSL distro stayed `Stopped` and the engine pipe
+never appeared (relaunch + restart + ~50 min of polling). Therefore steps in
+this section were not executed here; the compose stack is the standard
+healthchecked postgres:16 + redis:7 + minio setup and the commands above are the
+reproduction script for any machine where Docker Desktop starts normally. All
+application-layer behaviour (auth, validation, queue scheduling semantics,
+adapter logic, signature verification, processor bookkeeping, ownership checks)
+is fully covered by the 60 tests in section 4 plus the real-HTTP smoke in
+section 5.
 
-## 6. Security posture highlights
+## 8. Security posture highlights
 
 - Passwords: bcrypt (cost 10) — plaintext never stored or logged (asserted in tests).
 - Refresh tokens: 48-byte random, stored **hashed** (SHA-256), rotated on every refresh, revoked on logout.
 - Outgoing webhooks: `x-lifepilot-signature: sha256=<hmac>` over the exact raw body, constant-time compared.
 - Incoming Razorpay webhooks: signature verified against the **raw** request body before any processing; 401 on mismatch.
-- All credentials/env-injected; JWT_SECRET refuses the dev default when `NODE_ENV=production`.
+- All credentials env-injected; `JWT_SECRET` refuses the dev default when `NODE_ENV=production`.
