@@ -39,10 +39,11 @@ Prerequisites: **Node ≥ 18.17**, **Docker**, **pnpm ≥ 9** (`corepack enable`
 ```bash
 cp .env.example .env          # 1. environment (dev defaults are safe)
 docker compose up -d --wait   # 2. start PostgreSQL + Redis + MinIO
-pnpm install                  # 3. install deps (also runs prisma generate)
-pnpm db:migrate               # 4. apply the SQL migration
-pnpm db:seed                  # 5. optional: demo user + 2 sample reminders
-pnpm dev                      # 6. run web + api + worker together
+pnpm install                  # 3. install dependencies
+pnpm db:generate              # 4. generate the Prisma client (required on pnpm ≥ 10: install does not run it)
+pnpm db:migrate               # 5. apply the SQL migration
+pnpm db:seed                  # 6. optional: demo user + 2 sample reminders
+pnpm dev                      # 7. run web + api + worker together
 ```
 
 Then open:

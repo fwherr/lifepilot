@@ -1,6 +1,14 @@
 packages:
   - "apps/*"
   - "packages/*"
+# pnpm 10 reads onlyBuiltDependencies (list); pnpm 11+ reads allowBuilds (map).
+# Keep both so `pnpm install` runs the Prisma/esbuild build hooks on either version.
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - esbuild
+  - msgpackr-extract
+  - prisma
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
