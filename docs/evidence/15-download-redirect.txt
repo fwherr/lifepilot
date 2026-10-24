@@ -1,0 +1,2 @@
+HTTP/1.1 302 Found
+location: http://localhost:9000/lifepilot-attachments/reminders/cmvmiljnp0009tmxkn3k1fhwk/330e0b9b-082f-45fd-87bd-f9cb876b87df-e2e-proof.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=minioadmin%2F20261024%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20261024T145020Z&X-Amz-Expires=300&X-Amz-Signature=38bb7f128a610b33881dc798d1ede51cec2f1fdb214b5e0434bb25beeeda5b7a&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject

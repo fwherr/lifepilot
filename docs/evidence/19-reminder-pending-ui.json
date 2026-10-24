@@ -1,0 +1,17 @@
+{
+  "reminder": {
+    "id": "cmvmiloe8000btmxkk9f9cran",
+    "userId": "cmvmiljmp0005tmxk1floo0di",
+    "title": "E2E pending demo (stays PENDING until due)",
+    "body": "Scheduled 30 minutes ahead so the UI can be screenshot in PENDING state.",
+    "dueAt": "2026-10-24T15:19:22.870Z",
+    "channel": "EMAIL",
+    "status": "PENDING",
+    "payload": {
+      "to": "e2e-1792853356550@lifepilot.local",
+      "subject": "[LifePilot] E2E pending demo"
+    },
+    "createdAt": "2026-10-24T14:49:22.880Z",
+    "updatedAt": "2026-10-24T14:49:22.880Z"
+  }
+}

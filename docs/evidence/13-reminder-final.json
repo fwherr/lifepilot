@@ -1,0 +1,32 @@
+{
+  "reminder": {
+    "id": "cmvmiljnp0009tmxkn3k1fhwk",
+    "userId": "cmvmiljmp0005tmxk1floo0di",
+    "title": "E2E email proof (round-2 evidence)",
+    "body": "Runtime evidence for rework round 2: this reminder must move PENDING to DELIVERED via the BullMQ worker console transport.",
+    "dueAt": "2026-10-24T14:49:22.726Z",
+    "channel": "EMAIL",
+    "status": "DELIVERED",
+    "payload": {
+      "to": "e2e-1792853356550@lifepilot.local",
+      "subject": "[LifePilot] E2E email proof (round-2 evidence)"
+    },
+    "createdAt": "2026-10-24T14:49:16.742Z",
+    "updatedAt": "2026-10-24T14:49:22.849Z",
+    "attempts": [
+      {
+        "id": "cmvmilod60003c8w62v7p73c6",
+        "reminderId": "cmvmiljnp0009tmxkn3k1fhwk",
+        "channel": "EMAIL",
+        "status": "SUCCESS",
+        "detail": {
+          "to": "e2e-1792853356550@lifepilot.local",
+          "subject": "[LifePilot] E2E email proof (round-2 evidence)",
+          "transport": "console"
+        },
+        "createdAt": "2026-10-24T14:49:22.842Z"
+      }
+    ],
+    "attachments": []
+  }
+}

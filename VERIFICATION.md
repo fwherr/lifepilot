@@ -101,34 +101,148 @@ Route (app)            Size     First Load JS
 ○ /signup              2.8 kB    98.8 kB
 ```
 
-## 7. End-to-end run with real infrastructure (docker compose)
+## 7. End-to-end run with real infrastructure — EXECUTED 2026-10-24
 
-```bash
-docker compose up -d --wait   # postgres 5432 · redis 6379 · minio 9000/9001 (healthchecks gate)
-pnpm db:migrate               # applies 0001_init
-pnpm db:seed                  # demo user + 2 sample reminders (prints demo password)
-pnpm dev                      # web :3000 · api :3001 · worker (watch logs)
+This section previously recorded that the end-to-end run had **not** been
+executed because the Docker engine would not start during the 2026-10-08 build
+session. It was executed on 2026-10-24 and this section now documents the
+actual run. Raw logs and screenshots are committed under `docs/evidence/`
+(filenames referenced below).
+
+**Environment of the run:** Windows 11 x64, Docker Desktop 29.7.2 (WSL2
+Linux engine), Node v24.19.0, pnpm 11.7.0, PostgreSQL 16 / Redis 7 / MinIO
+RELEASE.2024-06-13T22-53-53Z as pinned in `docker-compose.yml`.
+
+### 7.1 `docker compose up -d --wait` — exit 0, three services healthy
+
+`docs/evidence/01-docker-compose-up.log` — final lines:
+
+```
+ Container lifepilot-postgres Healthy
+ Container lifepilot-minio Healthy
+ Container lifepilot-redis Healthy
 ```
 
-30-second delivery demo:
+`docker compose ps` immediately after: all three `Up (healthy)` —
+healthchecks (pg_isready / redis-cli ping / MinIO ready probe) gated startup
+as designed.
 
-1. Log in at http://localhost:3000 → **New reminder** → due time ~1 min ahead (or in the past to fire immediately) → channel **EMAIL** → schedule.
-2. Worker log prints the full email (`transport: "console"`) and the reminder flips **PENDING → DELIVERED**; the attempt (structured detail) is visible on the reminder page.
-3. WEBHOOK: `pnpm webhook:receiver` → create reminder with payload `{"url":"http://localhost:3100/hook"}` → receiver validates the signature and prints the payload (already proven over real HTTP in section 5).
-4. RAZORPAY: create a reminder on that channel → attempt detail shows `mode: "razorpay-simulated"` (or a real sandbox `order_…` id when `RAZORPAY_KEY_ID/SECRET` test keys are set).
-5. Attachments: open any reminder → **Upload file** → file lands in MinIO (`lifepilot-attachments` bucket), downloadable via short-lived presigned URL.
+### 7.2 `pnpm install` — build hooks now run on pnpm 10 and 11
 
-**Honest status from the build session:** Docker Desktop is installed on the
-build machine but its Linux engine could not be started during this sandboxed
-session — the `docker-desktop` WSL distro stayed `Stopped` and the engine pipe
-never appeared (relaunch + restart + ~50 min of polling). Therefore steps in
-this section were not executed here; the compose stack is the standard
-healthchecked postgres:16 + redis:7 + minio setup and the commands above are the
-reproduction script for any machine where Docker Desktop starts normally. All
-application-layer behaviour (auth, validation, queue scheduling semantics,
-adapter logic, signature verification, processor bookkeeping, ownership checks)
-is fully covered by the 60 tests in section 4 plus the real-HTTP smoke in
-section 5.
+`docs/evidence/02b-pnpm-install-fixed.log` — exit 0 with the dependency build
+hooks executed and **no** ignored-builds error:
+
+```
+.../node_modules/@prisma/engines postinstall: Done
+.../esbuild@0.21.5/node_modules/esbuild postinstall: Done
+.../prisma@5.22.0/node_modules/prisma preinstall: Done
+.../node_modules/@prisma/client postinstall: Done
+Done in 14s using pnpm v11.7.0
+```
+
+`pnpm-workspace.yaml` now carries both allowlist shapes: `onlyBuiltDependencies`
+(the list form pnpm 10 reads) and `allowBuilds` (the map form pnpm 11+ reads,
+with `strictDepBuilds` defaulting to true there). README quickstart step 4 runs
+`pnpm db:generate` explicitly, so the Prisma client exists on any pnpm
+regardless of hook behaviour.
+
+### 7.3 Schema: generate → migrate → seed — all exit 0
+
+```
+pnpm db:generate   # ✔ Generated Prisma Client (v5.22.0) in 115ms   (03-db-generate.log)
+pnpm db:migrate    # 1 migration found — Applying `0001_init` — applied (05-db-migrate.log)
+pnpm db:seed       # created demo user demo@lifepilot.local + 2 sample reminders (06-db-seed.log)
+```
+
+(On this run `DATABASE_URL` was exported from `.env` before invoking the
+`packages/db` scripts; the quickstart shell steps are unchanged.)
+
+### 7.4 `pnpm dev` — six processes up
+
+`docs/evidence/04-pnpm-dev.log`:
+
+- **web** (Next.js dev): `✓ Ready in 16.2s` — `GET http://localhost:3000` → HTTP 200
+- **api** (Fastify via tsx watch): `GET /health` → `{"status":"ok","service":"lifepilot-api"}` on :3001
+- **worker**: `lifepilot worker started {"queue":"reminders","concurrency":5,"redis":"redis://localhost:6379"}`
+- plus the three healthy containers above = six processes.
+
+### 7.5 Criterion 3 — EMAIL reminder PENDING → DELIVERED (real run)
+
+`docs/evidence/api-evidence.log` (produced by `docs/evidence/collect-evidence.mjs`):
+
+```
+[3] POST /reminders -> 201 id=cmvmiljnp0009tmxkn3k1fhwk status=PENDING dueAt=2026-10-24T14:49:22.726Z
+    queued job scheduled (BullMQ delayed job at dueAt)
+[4] GET /reminders/... -> 200 status=PENDING (PENDING captured)
+    poll#1 status=PENDING
+    poll#2 status=PENDING
+    poll#3 status=DELIVERED
+[5] FINAL status=DELIVERED attempts=1
+```
+
+Worker console transport printed the email and closed the job
+(`docs/evidence/17-worker-email-excerpt.log`, excerpt of `04-pnpm-dev.log`):
+
+```
+apps/worker dev: {"level":"info","msg":"email delivered via console transport",
+  "reminderId":"cmvmiljnp0009tmxkn3k1fhwk","to":"e2e-...@lifepilot.local",
+  "subject":"[LifePilot] E2E email proof (round-2 evidence)"}
+apps/worker dev: {"level":"info","msg":"reminder delivered",
+  "channel":"EMAIL","detail":{"transport":"console",...}}
+apps/worker dev: {"level":"info","msg":"job completed","jobId":"reminder-cmvmiljnp0009tmxkn3k1fhwk"}
+```
+
+UI: `docs/evidence/20-ui-reminder-PENDING.png` (PENDING badge, no attempts) and
+`docs/evidence/21-ui-reminder-DELIVERED.png` (DELIVERED badge + SUCCESS/EMAIL
+attempt row with `transport:"console"` detail + the attachment entry) — the
+attempt is visible in the UI as required. `22-ui-reminders-list.png` shows the
+list view.
+
+### 7.6 Criterion 5 — attachment stored in MinIO, linked to its reminder
+
+- `POST /reminders/:id/attachments` → 201, `objectKey:
+  reminders/cmvmiljnp0009tmxkn3k1fhwk/330e0b9b-…-e2e-proof.txt`
+  (`docs/evidence/14-attachment-upload.json`)
+- `GET /attachments/:id/download` → **302** with a short-lived AWS-SigV4
+  presigned URL against `http://localhost:9000/lifepilot-attachments/…`
+  (`docs/evidence/15-download-redirect.txt`)
+- Bucket listing inside the MinIO container
+  (`docs/evidence/16-minio-ls.txt`):
+
+```
+[2026-10-24 14:49:22 UTC]    92B STANDARD reminders/cmvmiljnp0009tmxkn3k1fhwk/330e0b9b-082f-45fd-87bd-f9cb876b87df-e2e-proof.txt
+```
+
+### 7.7 Bug found and fixed by this run (why runtime proof matters)
+
+The first live reminder creation failed with HTTP 500
+`Custom Id cannot contain :` — BullMQ rejects custom job ids containing
+colons, and the unit tests exercise the queue through an injectable fake, so
+the integration gap was invisible to `pnpm test`. Fixed in
+`apps/api/src/lib/queue.ts` (`reminder:${id}` → `reminder-${id}`, both call
+sites); `pnpm test` re-run after the fix: **60/60 green**
+(`docs/evidence/18-pnpm-test-final.log`), typecheck 5/5 packages.
+
+### 7.8 Note on image provenance
+
+The pinned images (`postgres:16-alpine`, `redis:7-alpine`,
+`minio/minio:RELEASE.2024-06-13T22-53-53Z`) were pulled through a registry
+mirror because Docker Hub is unreachable from this network; layer digests were
+verified against the manifest (`sha256:98fe67c08bf9…` for the MinIO tag). The
+compose file itself is unchanged.
+
+### 7.9 Reproduce
+
+```bash
+cp .env.example .env
+docker compose up -d --wait
+pnpm install
+pnpm db:generate
+pnpm db:migrate
+pnpm db:seed
+pnpm dev          # six processes; then follow README "See a delivery happen"
+pnpm test         # 60/60, no external services
+```
 
 ## 8. Security posture highlights
 

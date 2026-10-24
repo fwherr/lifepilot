@@ -26,7 +26,8 @@ export class BullReminderQueue implements ReminderQueue {
       { reminderId },
       {
         // Deterministic job id => re-creating a reminder never duplicates jobs.
-        jobId: `reminder:${reminderId}`,
+        // Note: no ":" — BullMQ rejects custom job ids containing colons.
+        jobId: `reminder-${reminderId}`,
         delay,
         attempts: 3,
         backoff: { type: "exponential", delay: 5_000 },
@@ -37,7 +38,7 @@ export class BullReminderQueue implements ReminderQueue {
   }
 
   async cancelReminder(reminderId: string): Promise<void> {
-    const job = await this.queue.getJob(`reminder:${reminderId}`);
+    const job = await this.queue.getJob(`reminder-${reminderId}`);
     if (!job) return;
     try {
       await job.remove();
