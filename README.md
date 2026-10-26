@@ -88,6 +88,7 @@ API dev server: `tsx watch` on port **3001**. Web dev server: **3000**. All port
 | `API_PORT` / `API_HOST` | api | `3001` / `0.0.0.0` | HTTP bind |
 | `CORS_ORIGIN` | api | `http://localhost:3000` | Allowed web origin |
 | `JWT_SECRET` | api | `dev-only-secret-change-me` | Access-token signing (must change outside local dev) |
+| `NODE_ENV` | api | — (unset in dev) | When set to `production`, the API refuses to start while `JWT_SECRET` is still the dev default (`apps/api/src/config.ts`) |
 | `ACCESS_TOKEN_TTL` | api | `15m` | Access token lifetime |
 | `REFRESH_TOKEN_TTL_DAYS` | api | `7` | Refresh token lifetime |
 | `LOG_LEVEL` | api, worker | `info` | Pino/console level |
@@ -96,6 +97,7 @@ API dev server: `tsx watch` on port **3001**. Web dev server: **3000**. All port
 | `SMTP_HOST/PORT/SECURE/USER/PASS` | worker | — | SMTP settings when transport=smtp |
 | `EMAIL_FROM` | worker | `LifePilot <no-reply@lifepilot.local>` | From header |
 | `WEBHOOK_SIGNING_SECRET` | api, worker | `dev-webhook-secret` | HMAC-SHA256 secret for outgoing webhook signatures |
+| `PORT` | scripts/dev-webhook-receiver.mjs | `3100` | Listen port of the local signature-verifying receiver (`PORT=3200 node scripts/dev-webhook-receiver.mjs` to override) |
 | `S3_ENDPOINT` | api | `http://localhost:9000` | MinIO endpoint |
 | `S3_REGION` | api | `us-east-1` | S3 region string |
 | `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | api | `minioadmin` / `minioadmin` | MinIO credentials |
